@@ -1,0 +1,4 @@
+- fixed Filterwheel position
+- spec layout 0-2048
+- close confitmation dialogue
+- stop spec when closing
