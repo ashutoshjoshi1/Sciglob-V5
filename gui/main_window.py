@@ -5,7 +5,7 @@ import numpy as np
 
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QGridLayout, QSplitter,
-    QLabel, QPushButton, QStatusBar
+    QLabel, QPushButton, QStatusBar, QMessageBox
 )
 from PyQt5.QtCore import QTimer, Qt, QDateTime
 
@@ -240,3 +240,61 @@ class MainWindow(QMainWindow):
             os.fsync(self.log_file.fileno())
         except Exception as e:
             print(f"Log write error: {e}")
+
+    def closeEvent(self, event):
+        """Handle application close event - show confirmation dialog and clean up resources"""
+        print("closeEvent called")  # Debug print to verify method is called
+        
+        # Show confirmation dialog
+        reply = QMessageBox.question(
+            self, 'Exit Confirmation',
+            'Do you want to quit?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No  # Default is No (safer)
+        )
+        
+        if reply == QMessageBox.Yes:
+            # Stop spectrometer measurement if active
+            if hasattr(self, 'spec_ctrl') and self.spec_ctrl is not None:
+                try:
+                    # Check if measurement is active
+                    if hasattr(self.spec_ctrl, 'measure_active') and self.spec_ctrl.measure_active:
+                        self.statusBar().showMessage("Stopping spectrometer before exit...")
+                        # Stop the measurement
+                        self.spec_ctrl.stop()
+                        # Give it a moment to stop
+                        QTimer.singleShot(500, lambda: self._finalize_close(event))
+                        # Prevent immediate close
+                        event.ignore()
+                        return
+                except Exception as e:
+                    print(f"Error stopping spectrometer: {e}")
+            
+            # If we get here, either there's no spectrometer or it's already stopped
+            self._finalize_close(event)
+        else:
+            # User chose not to exit
+            event.ignore()
+    
+    def _finalize_close(self, event):
+        """Finalize the closing process after stopping measurements"""
+        try:
+            # Stop any ongoing data saving
+            if hasattr(self, 'continuous_saving') and self.continuous_saving:
+                self.toggle_data_saving()
+            
+            # Close any open files
+            if hasattr(self, 'csv_file') and self.csv_file:
+                self.csv_file.close()
+            if hasattr(self, 'log_file') and self.log_file:
+                self.log_file.close()
+            
+            # Accept the close event to allow the application to close
+            event.accept()
+        except Exception as e:
+            print(f"Error during application shutdown: {e}")
+            # Still allow closing even if cleanup fails
+            event.accept()
+
+
+

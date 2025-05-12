@@ -20,13 +20,31 @@ class FilterWheelCommandThread(QThread):
                 time.sleep(1.0)  # wait for the wheel to move/reset
                 self.serial.reset_input_buffer()      # flush any interim response
                 self.serial.write(b"?\r")             # query current position
+                time.sleep(0.5)  # additional wait for response
             # Read the response line (with timeout)
             response = self.serial.readline()  # reads until '\n' or timeout
             pos = None
             if response:
                 data = response.decode('ascii', errors='ignore').strip()
-                # Parse any digit(s) in the response as the position
-                pos = int(''.join(filter(str.isdigit, data))) if any(c.isdigit() for c in data) else None
+                # Parse position from command or response
+                if self.command == "?":
+                    # For query command, try to parse position from response
+                    try:
+                        pos = int(data) if data.isdigit() else None
+                    except ValueError:
+                        pos = None
+                else:
+                    # For move/reset commands, extract from command
+                    cmd = self.command
+                    if cmd.startswith('F') and len(cmd) >= 2:
+                        if cmd.endswith('r'):  # reset command like F1r
+                            pos = 1  # Reset always goes to position 1
+                        else:
+                            # Extract digits after 'f' (e.g., F13 → pos=3)
+                            try:
+                                pos = int(cmd[len(cmd)-1])
+                            except ValueError:
+                                pos = None
                 # Determine a user-friendly status message
                 if pos is not None:
                     if self.command.endswith('r'):  # reset command
@@ -40,7 +58,7 @@ class FilterWheelCommandThread(QThread):
                     msg = f"Received: {data}"
             else:
                 # No response (e.g. timeout)
-                msg = "No response from filter wheel (timeout)."
+                msg = "No response from filter wheel (timeout). Check connections and try again."
             # (Do not close the port here to keep connection alive)
         except Exception as e:
             pos = None
@@ -66,3 +84,7 @@ class FilterWheelConnectThread(QThread):
             ser = None
             msg = f"Failed to open {self.port}: {e}"
         self.result_signal.emit(ser, msg)
+
+
+
+
