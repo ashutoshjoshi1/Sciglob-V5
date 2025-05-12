@@ -1,0 +1,8 @@
+{
+    "filterwheel": "COM21",
+    "imu": "COM20",
+    "motor": "COM19",
+    "temp_controller": "COM16",
+    "thp_sensor": "COM22"
+  }
+  
